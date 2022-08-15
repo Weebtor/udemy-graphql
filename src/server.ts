@@ -44,6 +44,8 @@ const typeDefs:DocumentNode = gql`
     user: User!
   }
 `;
+
+// comment
 const resolvers = {
   Query: {
     greetings: () => "Hello",
