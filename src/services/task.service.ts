@@ -78,9 +78,10 @@ export default class TaskService  {
       }
     }
   }
-  async getUserById(userId: string): Promise<User> {
+  async getUserById(userId: string, loaders: any): Promise<User> {
     // if(!isValidObjectId(userId)) throw new Error('invalid id');
-    const user = await UserDbModel.findOne({_id: userId})
+    // const user = await UserDbModel.findOne({_id: userId})
+    const user = await loaders.user.load(userId)
     if (!user) throw new Error("no user for the task")
     return {
       id: user._id.toString(),

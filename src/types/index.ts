@@ -1,4 +1,6 @@
+import DataLoader from 'dataloader';
 import {Request} from 'express'
+import { FieldNode } from 'graphql';
 import { User } from '../schemas/user/user.schema'
 export interface TaskType {
   id: string,
@@ -21,6 +23,9 @@ export interface UserType {
 
 export interface SessionContext {
   authenticated: boolean,
+  loaders?: {
+    [key: string]: any
+  }
   session?: {
     userId: string,
     email: string,

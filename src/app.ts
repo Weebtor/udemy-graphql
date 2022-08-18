@@ -1,6 +1,6 @@
 import "reflect-metadata"
 import express, {Express, Request, Response} from "express";
-import { ApolloServer, AuthenticationError} from "apollo-server-express";
+import { ApolloServer } from "apollo-server-express";
 import { ApolloServerPluginLandingPageGraphQLPlayground } from "apollo-server-core";
 import cors from "cors";
 import dotEnv from "dotenv";
@@ -12,13 +12,14 @@ import { verifyUser } from "./helpers/context";
 import { AppContext, SessionContext } from "./types";
 import { getUserFromToken } from "./utils/getUserFromToken";
 import { isAuthenticated } from "./utils/isAuthenticated";
-
+import Dataloader from 'dataloader'
+import loaders from './loaders'
 dotEnv.config(); // set process env
 const EXPRESS_PORT = process.env.EXPRESS_PORT || 5000;
 const APOLLO_PATH = process.env.APOLLO_PATH || '/graphql';
 
 
-
+const userLoader = new Dataloader((keys:any) => loaders.batchUsers(keys))
 const startServer = async() => {
   const app:Express = express();
   app.use(cors()); // cors
@@ -32,6 +33,7 @@ const startServer = async() => {
       dateScalarMode: "isoDate",
     }),
     plugins: [ApolloServerPluginLandingPageGraphQLPlayground],
+    
     context: async ({req}): Promise<AppContext | null> => {
       const token = req.headers.authorization?.split(' ')[1];
       if (!token) {
@@ -45,23 +47,35 @@ const startServer = async() => {
             session: {
               userId: user._id.toString(),
               email: user.email,
+            },
+            loaders: {
+              user: userLoader
             }
           }
           return {context: sessionContext}
         }
         
       }
-      return {context: {authenticated: false}}
+      return {
+        context: {
+          authenticated: false,
+        }
+      }
     },
-      
+    formatError: (error) => {
+      return {
+        message: error.message
+      }
+    }
   })
   await apolloServer.start();
   apolloServer.applyMiddleware({app, path: APOLLO_PATH});
 
-  app.listen(EXPRESS_PORT, () => {
+  const httpServer = app.listen(EXPRESS_PORT, () => {
     serverLog(`Server listening on PORT: ${EXPRESS_PORT}`);
     serverLog(`Graphql Endpint: ${apolloServer.graphqlPath}`)
   })
+
 }
 
 startServer();

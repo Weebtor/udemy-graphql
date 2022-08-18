@@ -42,8 +42,10 @@ class TaskResolver {
   @FieldResolver(() => User)
   async user(
     @Root() task:Task,
+    @Ctx() ctx: AppContext,
   ) {
-    return await this.taskService.getUserById(task.user.toString())
+    const {loaders} = ctx.context;
+    return await this.taskService.getUserById(task.user.toString(), loaders)
   }
   
   @Mutation(() => Task)
