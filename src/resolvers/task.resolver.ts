@@ -1,41 +1,83 @@
-import {Task, TastTest} from "../schemas/task/task.schema";
-import {Arg, FieldResolver, Mutation, Query, Resolver, Root} from "type-graphql"
+import {Task, TaskFeed} from "../schemas/task/task.schema";
+import {Arg, Ctx, FieldResolver, Int, Mutation, Query, Resolver, Root, UseMiddleware} from "type-graphql"
 import serverLog from "../utils/serverLog";
-import { TaskInputType, TaskType } from "../types";
-const { tasks: tasksArr, users: usersArr }  = require("../constants")
-import * as uudi from "uuid"
-import { CreateTaskInput } from "../schemas/task/task.dto";
-import User from "../schemas/user/user.schema";
-
+import { AppContext, TaskInputType, TaskType } from "../types";
+import { CreateTaskInput, UpdateTaskInput } from "../schemas/task/task.dto";
+import {User} from "../schemas/user/user.schema";
+import TaskService from "../services/task.service";
+import { isAuthenticated } from "../utils/isAuthenticated";
+import { isTaskOwner } from "../utils/isTaskOwner";
 
 @Resolver(Task) 
 class TaskResolver {
-  @Query(() => Task, {nullable:false})
-  task(
-    @Arg('id') id:string
-  ) {
-    return tasksArr.find((task: Task) => task.id === id)
+  constructor(private taskService: TaskService){
+    this.taskService = new TaskService()
   }
 
-  @Query(()=> [Task], {nullable:true})
-  tasks() {
-    return tasksArr
+
+  @Query(() => Task, {nullable:false})
+  @UseMiddleware(isAuthenticated)
+  @UseMiddleware(isTaskOwner)
+  async task(
+    @Arg('id') id:string,
+  ) {
+    return this.taskService.getTaskById(id)
+  }
+
+  @Query(()=> TaskFeed)
+  @UseMiddleware(isAuthenticated)
+  async tasks(
+    @Arg('cursor', {nullable: true}) cursor: string,
+    @Arg('limit', {defaultValue: 10}) limit: number,
+    @Ctx() ctx: AppContext,
+  ) {
+    const { session } = ctx.context
+    return await this.taskService.getUserTasks({
+      userId: session!.userId,
+      cursor: cursor,
+      limit: limit
+    })
   }
 
   @FieldResolver(() => User)
-  user(@Root() task:TaskType) {
-    console.log(task);
-    return usersArr.find((user: User) => user.id === task.userId)
+  async user(
+    @Root() task:Task,
+  ) {
+    return await this.taskService.getUserById(task.user.toString())
   }
   
   @Mutation(() => Task)
-  createTask(
-    @Arg('input') input: CreateTaskInput
+  @UseMiddleware(isAuthenticated)
+  async createTask(
+    @Arg('input') input: CreateTaskInput,
+    @Ctx() ctx: AppContext,
   ) {
-    const newTask: TaskType = {...input, id: uudi.v4()}
-    tasksArr.push(newTask)
-    return newTask
+    const { session } = ctx.context
+    return await this.taskService.createTask(input, session!.userId);
   }
+
+  @Mutation(() => Task)
+  @UseMiddleware(isAuthenticated)
+  @UseMiddleware(isTaskOwner)
+  async updateTask(
+    @Arg('input') input: UpdateTaskInput,
+    @Arg('id') id: string,
+  ){
+    return await this.taskService.updateTask(input, id)
+  }
+
+  @Mutation(() => Task)
+  @UseMiddleware(isAuthenticated)
+  @UseMiddleware(isTaskOwner)
+  async deleteTask(
+    @Arg('id') id: string,
+    @Ctx() ctx: AppContext,
+  ){
+    const { session } = ctx.context
+    return await this.taskService.deleteTaskById(id,  session!.userId)
+  }
+
+
 };
 
 export default TaskResolver;
